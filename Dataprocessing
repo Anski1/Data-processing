@@ -1,0 +1,81 @@
+class InMemoryDB:
+    def __init__(self):
+        self.data = {}
+        self.transaction_active = False
+        self.transaction_log = []
+
+    def get(self, key):
+        return self.data.get(key, None)
+
+    def put(self, key, value):
+        if not self.transaction_active:
+            raise Exception("No transaction is currently active. Begin a transaction before making changes.")
+        
+        # Log the original value for rollback purposes
+        if key not in self.transaction_log:
+            original_value = self.data.get(key, None)
+            self.transaction_log.append((key, original_value))
+
+        self.data[key] = value
+
+    def begin_transaction(self):
+        if self.transaction_active:
+            raise Exception("Transaction already active. Commit or rollback the current transaction before starting a new one.")
+        
+        self.transaction_active = True
+        self.transaction_log = []
+
+    def commit(self):
+        if not self.transaction_active:
+            raise Exception("No transaction is currently active to commit.")
+        
+        self.transaction_active = False
+        self.transaction_log = []
+
+    def rollback(self):
+        if not self.transaction_active:
+            raise Exception("No transaction is currently active to rollback.")
+        
+        # Revert changes recorded in the transaction log
+        while self.transaction_log:
+            key, value = self.transaction_log.pop()
+            if value is None:
+                self.data.pop(key, None)
+            else:
+                self.data[key] = value
+
+        self.transaction_active = False
+
+# Example Usage
+db = InMemoryDB()
+
+# Simulating a transaction for a money transfer
+try:
+    db.begin_transaction()
+    
+    # Suppose A has $100 initially and B has $50
+    db.put("A", 100)
+    db.put("B", 50)
+
+    # A transfers $30 to B
+    amount_to_transfer = 30
+    a_balance = db.get("A")
+    b_balance = db.get("B")
+
+    if a_balance >= amount_to_transfer:
+        db.put("A", a_balance - amount_to_transfer)
+        db.put("B", b_balance + amount_to_transfer)
+    else:
+        raise Exception("Insufficient funds")
+
+    db.commit()
+    print("Transaction successful.")
+except Exception as e:
+    print(e)
+    db.rollback()
+    print("Transaction failed and rolled back.")
+finally:
+    print("A's balance:", db.get("A"))
+    print("B's balance:", db.get("B"))
+
+
